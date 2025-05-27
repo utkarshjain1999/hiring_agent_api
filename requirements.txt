@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+python-dotenv
+passlib[bcrypt]
+sqlalchemy
+psycopg2-binary
+python-jose[cryptography]
+pdfplumber
+python-docx
+langchain_groq
+python-multipart
+pydantic[email]
+langchain-community
+scikit-learn
