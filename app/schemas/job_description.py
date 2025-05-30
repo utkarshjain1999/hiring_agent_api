@@ -1,9 +1,15 @@
 from pydantic import BaseModel
 from typing import List, Optional
+from datetime import datetime
 
 class JDRequest(BaseModel):
     jd_text: str
     interviewer_ids: List[int]
+    round1: Optional[str] = None
+    round2: Optional[str] = None
+    round3: Optional[str] = None
+    round4: Optional[str] = None
+    round5: Optional[str] = None
 
 class JDResponse(BaseModel):
     id: int
@@ -16,6 +22,15 @@ class JDResponse(BaseModel):
     company_name: Optional[str]
     raw_jd_text: str
     interviewer_ids: List[int]
+    created_at: datetime
+    round1: Optional[str]
+    round2: Optional[str]
+    round3: Optional[str]
+    round4: Optional[str]
+    round5: Optional[str]
+
+    class Config:
+        orm_mode = True
 
 # Add the missing JDUpdateRequest schema
 class JDUpdateRequest(BaseModel):
@@ -28,3 +43,8 @@ class JDUpdateRequest(BaseModel):
     company_name: Optional[str] = None
     raw_jd_text: Optional[str] = None
     interviewer_ids: Optional[List[int]] = None
+    round1: Optional[str] = None
+    round2: Optional[str] = None
+    round3: Optional[str] = None
+    round4: Optional[str] = None
+    round5: Optional[str] = None

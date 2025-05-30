@@ -12,3 +12,5 @@ python-multipart
 pydantic[email]
 langchain-community
 scikit-learn
+PyJWT==2.8.0
+pydantic-settings==2.1.0

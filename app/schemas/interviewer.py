@@ -1,19 +1,34 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import date, time, datetime
 
+PHONE_PATTERN = r'^\+?1?\d{9,15}$'
+
 class InterviewerCreate(BaseModel):
-    username: str
-    password: str  # Raw password input
+    name: str
+    email: EmailStr
+    phone_number: str = Field(..., pattern=PHONE_PATTERN)
 
 class InterviewerUpdate(BaseModel):
-    username: Optional[str]
-    password: Optional[str]
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = Field(None, pattern=PHONE_PATTERN)
 
 class InterviewerOut(BaseModel):
     id: int
-    username: str
+    name: str
+    email: str
+    phone_number: str
     role: str
+
+    class Config:
+        orm_mode = True
+        # Allow extra fields from the model
+        extra = "allow"
+        # Convert None values to empty strings for string fields
+        json_encoders = {
+            str: lambda v: v if v is not None else ""
+        }
 
 class CreateSlot(BaseModel):
     interviewer_id: int

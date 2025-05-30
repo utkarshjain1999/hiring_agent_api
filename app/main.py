@@ -8,9 +8,19 @@ from app.api import interviewer
 from app.api import job_description
 from app.api import resumer_matcher
 from app.api import hr
-# from app.models import users, candidate  # Import all models to register with Base
+from fastapi.middleware.cors import CORSMiddleware
+# from app.models import users, candidate # Import all models to register with Base
 
 app = FastAPI()
+
+# Allow all origins (for dev/testing)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Or specify: ["https://your-frontend.ngrok.io"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Create all tables before the app starts serving requests
 @app.on_event("startup")

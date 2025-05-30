@@ -1,16 +1,9 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, Text, DateTime
 from sqlalchemy.orm import relationship
 from app.database import Base
 from pydantic import BaseModel
-from app.models.users import User  # Assuming interviewer info is in user table
-
-# Association table
-job_interviewers = Table(
-    "job_interviewers",
-    Base.metadata,
-    Column("job_description_id", ForeignKey("job_descriptions.id"), primary_key=True),
-    Column("interviewer_id", ForeignKey("users.id"), primary_key=True)
-)
+from datetime import datetime
+from app.models.associations import job_interviewers
 
 class JobDescription(Base):
     __tablename__ = "job_descriptions"
@@ -24,6 +17,12 @@ class JobDescription(Base):
     job_type = Column(String)
     company_name = Column(String)
     raw_jd_text = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    round1 = Column(Text)
+    round2 = Column(Text)
+    round3 = Column(Text)
+    round4 = Column(Text)
+    round5 = Column(Text)
 
     interviewers = relationship("User", secondary=job_interviewers, back_populates="job_descriptions")
 
@@ -31,6 +30,7 @@ class JobDescriptionOut(BaseModel):
     id: int
     title: str
     description: str
+    created_at: datetime
 
     class Config:
         orm_mode = True

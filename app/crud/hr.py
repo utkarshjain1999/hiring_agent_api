@@ -1,5 +1,7 @@
 from sqlalchemy.orm import Session
-from app.models import Interview, Candidate, User
+from app.models.interview import Interview
+from app.models.users import User
+from app.models.candidate import Candidate
 from app.schemas.hr import *
 from app.core.utils import send_email
 

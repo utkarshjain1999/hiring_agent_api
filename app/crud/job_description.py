@@ -3,7 +3,7 @@ from app.models.job_description import JobDescription
 from app.models.users import User
 from app.services.jd_parser import extract_jd_data
 
-def extract_and_store_jd(jd_text: str, interviewer_ids: list[int], db: Session):
+def extract_and_store_jd(jd_text: str, interviewer_ids: list[int], db: Session, round1: str = None, round2: str = None, round3: str = None, round4: str = None, round5: str = None):
     result = extract_jd_data(jd_text)
     if result:
         jd = JobDescription(
@@ -15,6 +15,11 @@ def extract_and_store_jd(jd_text: str, interviewer_ids: list[int], db: Session):
             job_type=result.get("job_type"),
             company_name=result.get("company_name"),
             raw_jd_text=jd_text,
+            round1=round1,
+            round2=round2,
+            round3=round3,
+            round4=round4,
+            round5=round5
         )
 
         interviewers = db.query(User).filter(User.id.in_(interviewer_ids)).all()

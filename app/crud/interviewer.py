@@ -1,16 +1,25 @@
+from sqlalchemy import or_, and_
 from sqlalchemy.orm import Session
 from app.models.users import User
 from app.schemas.interviewer import InterviewerCreate, InterviewerUpdate
-from app.core.security import get_password_hash
 from datetime import datetime
 from app.models.interviewer import InterviewerAvailability
 from app.schemas.interviewer import CreateSlot
 
 def create_interviewer(db: Session, interviewer: InterviewerCreate):
-    hashed_pw = get_password_hash(interviewer.password)
+    # Check if email or phone number already exists
+    existing_user = db.query(User).filter(
+        (User.email == interviewer.email) | 
+        (User.phone_number == interviewer.phone_number)
+    ).first()
+    
+    if existing_user:
+        raise ValueError("Email or phone number already registered")
+    
     db_user = User(
-        username=interviewer.username,
-        hashed_password=hashed_pw,
+        name=interviewer.name,
+        email=interviewer.email,
+        phone_number=interviewer.phone_number,
         role="interviewer"
     )
     db.add(db_user)
@@ -19,24 +28,73 @@ def create_interviewer(db: Session, interviewer: InterviewerCreate):
     return db_user
 
 def get_all_interviewers(db: Session):
-    return db.query(User).filter(User.role == "interviewer").all()
+    # Get all interviewers and filter out any that don't meet our schema requirements
+    interviewers = db.query(User).filter(
+        User.role == "interviewer",
+        User.name.isnot(None),
+        User.phone_number.isnot(None),
+        User.email.isnot(None)
+    ).all()
+    
+    # If any interviewer is missing required fields, we should log this
+    invalid_interviewers = db.query(User).filter(
+        User.role == "interviewer",
+        (User.name.is_(None) | User.phone_number.is_(None) | User.email.is_(None))
+    ).all()
+    
+    if invalid_interviewers:
+        print(f"Warning: Found {len(invalid_interviewers)} interviewers with missing required fields")
+        for interviewer in invalid_interviewers:
+            print(f"Interviewer ID {interviewer.id}: name={interviewer.name}, phone={interviewer.phone_number}, email={interviewer.email}")
+    
+    return interviewers
 
 def update_interviewer(db: Session, interviewer_id: int, updates: InterviewerUpdate):
     db_user = db.query(User).filter(User.id == interviewer_id, User.role == "interviewer").first()
     if not db_user:
         return None
-    if updates.username:
-        db_user.username = updates.username
-    if updates.password:
-        db_user.hashed_password = get_password_hash(updates.password)
+        
+    # Check if new email or phone number conflicts with existing users
+    if updates.email or updates.phone_number:
+        filters = [User.id != interviewer_id]
+
+        if updates.email and updates.phone_number:
+            filters.append(or_(
+                User.email == updates.email,
+                User.phone_number == updates.phone_number
+            ))
+        elif updates.email:
+            filters.append(User.email == updates.email)
+        elif updates.phone_number:
+            filters.append(User.phone_number == updates.phone_number)
+
+        existing_user = db.query(User).filter(and_(*filters)).first()
+
+        if existing_user:
+            raise ValueError("Email or phone number already registered")
+    
+    if updates.name:
+        db_user.name = updates.name
+    if updates.email:
+        db_user.email = updates.email
+    if updates.phone_number:
+        db_user.phone_number = updates.phone_number
+        
     db.commit()
     db.refresh(db_user)
     return db_user
 
 def delete_interviewer(db: Session, interviewer_id: int):
+    # First, get the interviewer
     db_user = db.query(User).filter(User.id == interviewer_id, User.role == "interviewer").first()
     if not db_user:
         return None
+    
+    # Remove the interviewer from all job descriptions
+    db_user.job_descriptions = []
+    db.commit()
+    
+    # Now delete the user
     db.delete(db_user)
     db.commit()
     return db_user
