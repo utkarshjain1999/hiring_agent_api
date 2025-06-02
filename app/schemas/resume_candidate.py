@@ -7,6 +7,13 @@ class CandidateData(BaseModel):
     email: EmailStr
 
 class MatchingRequest(BaseModel):
-    jd_text: str
+    jd_id: int
     threshold: float = 0.7
-    top_n: int = 10
+    top_n: int = 5
+    batch_id: Optional[str] = None
+
+class MatchingRequestByBatch(BaseModel):
+    batch_id: str
+    jd_id: str
+    threshold: float = 0.7
+    top_n: int = 5

@@ -6,15 +6,14 @@ import time
 import json
 from io import BytesIO
 from typing import List, Optional
-
 import pdfplumber
 import docx
-
 from app.models.resume import Resume
 from app.database import SessionLocal
 from langchain_groq import ChatGroq
 from app.core.utils import extract_first_json  # Ensure this utility is available
 from app.config import GROQ_API_KEYS
+import uuid
 
 # Load GROQ API keys from environment variable
 
@@ -95,6 +94,7 @@ def query_groq_api(text: str, max_retries: int = 3) -> Optional[dict]:
 
 def process_zip_file(file: BytesIO) -> List[dict]:
     extracted_resumes = []
+    batch_uuid = uuid.uuid4()
     with tempfile.TemporaryDirectory() as temp_dir:
         try:
             with zipfile.ZipFile(file) as zip_ref:
@@ -129,7 +129,8 @@ def process_zip_file(file: BytesIO) -> List[dict]:
                         certification=resume_data.get("certification"),
                         experience=resume_data.get("experience"),
                         intern_experience=resume_data.get("Intern_Experience"),
-                        source_file=resume_data.get("source_file")
+                        source_file=resume_data.get("source_file"),
+                        batch_id = batch_uuid
                     )
                     db.add(resume_record)
                     db.commit()
@@ -137,4 +138,4 @@ def process_zip_file(file: BytesIO) -> List[dict]:
 
                     extracted_resumes.append(resume_data)
         db.close()
-    return extracted_resumes
+    return {"batch_id": str(batch_uuid), "resumes": extracted_resumes}

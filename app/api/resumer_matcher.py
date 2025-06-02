@@ -2,6 +2,9 @@ from fastapi import APIRouter, Query, HTTPException
 from app.schemas.resume_candidate import CandidateData, MatchingRequest
 from app.services.screening import match_resumes_service, shortlist_candidate, hold_candidate, reject_candidate, export_candidates_to_excel, get_candidates_by_status
 from app.crud.job_description import get_all_job_descriptions
+from app.database import get_db
+from fastapi import Depends
+from sqlalchemy.orm import Session
 
 router = APIRouter()
 
@@ -31,9 +34,10 @@ def reject(data: CandidateData):
     return reject_candidate(data)
 
 @router.post("/match_resumes")
-def match_resumes(request: MatchingRequest):
-    return match_resumes_service(request)
+def match_resumes(request: MatchingRequest, db: Session = Depends(get_db)):
+    return match_resumes_service(request, db)
 
 @router.get("/exportToExcel")
 def export_excel():
     return export_candidates_to_excel()
+

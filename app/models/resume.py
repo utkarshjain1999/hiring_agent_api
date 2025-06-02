@@ -1,5 +1,7 @@
 from sqlalchemy import Column, Integer, String, ARRAY, JSON
 from app.database import Base
+import uuid
+from sqlalchemy.dialects.postgresql import UUID
 
 class Resume(Base):
     __tablename__ = "resumes"
@@ -15,3 +17,4 @@ class Resume(Base):
     experience = Column(Integer)
     intern_experience = Column(JSON)
     source_file = Column(String)
+    batch_id = Column(UUID(as_uuid=True), default=uuid.uuid4, index=True)

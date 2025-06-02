@@ -10,7 +10,6 @@ def extract_jd_data(jd_text: str, max_retries: int = 4):
     and return the output strictly in valid JSON format:
 
     {{
-        "job_title": <Extracted Job Title or null>,
         "qualifications": <Extracted Degree or any>,
         "location": <Extracted Location or null>,
         "experience_required": <Experience Required (in years or months) or make it 0>,

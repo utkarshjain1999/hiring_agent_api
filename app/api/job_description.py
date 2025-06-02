@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-from app.schemas.job_description import JDRequest, JDResponse, JDUpdateRequest
+from app.schemas.job_description import JDRequest, JDResponse, JDUpdateRequest,RoundRequest,Interviewer
 from app.models.job_description import JobDescription
 from app.models.users import User
 from app.database import get_db
@@ -12,41 +12,99 @@ router = APIRouter()
 
 @router.post("/parse_jd", response_model=JDResponse)
 def parse_jd(request: JDRequest, db: Session = Depends(get_db)):
-    jd = extract_and_store_jd(request.jd_text, request.interviewer_ids, db)
+    jd = extract_and_store_jd(request.job_description,request.job_title, request.interviewer_ids, db,request.rounds)
     if jd is None:
         raise HTTPException(status_code=500, detail="Failed to extract JD.")
+    # Map rounds to round1-round5
+    round_fields = {
+        "round1": None,
+        "round2": None,
+        "round3": None,
+        "round4": None,
+        "round5": None,
+    }
+
+    for round_item in request.rounds:
+        round_id = round_item.id
+        round_title = round_item.title
+        if 1 <= round_id <= 5:
+            round_fields[f"round{round_id}"] = round_title
+
     return JDResponse(
         id=jd.id,
-        job_title=jd.job_title,
+        title=jd.job_title,
         qualifications=jd.qualifications,
         location=jd.location,
         experience_required=jd.experience_required,
         required_skills=jd.required_skills.split(", ") if jd.required_skills else [],
         job_type=jd.job_type,
         company_name=jd.company_name,
-        raw_jd_text=jd.raw_jd_text,
-        interviewer_ids=[interviewer.id for interviewer in jd.interviewers]
+        description=jd.raw_jd_text,
+        interviewer_ids=[interviewer.id for interviewer in jd.interviewers],
+        created_at=jd.created_at,
+        # round1=jd.round1,
+        # round2=jd.round2,
+        # round3=jd.round3,
+        # round4=jd.round4,
+        # round5=jd.round5
+        **round_fields
     )
 
 @router.get("/getJobDescriptions", response_model=List[JDResponse])
 def get_job_descriptions(db: Session = Depends(get_db)):
     try:
-        job_descriptions = db.query(JobDescription).all()
-        return [
-            JDResponse(
-                id=jd.id,
-                job_title=jd.job_title,
-                qualifications=jd.qualifications,
-                location=jd.location,
-                experience_required=jd.experience_required,
-                required_skills=jd.required_skills.split(", ") if jd.required_skills else [],
-                job_type=jd.job_type,
-                company_name=jd.company_name,
-                raw_jd_text=jd.raw_jd_text,
-                interviewer_ids=[interviewer.id for interviewer in jd.interviewers]
-            )
-            for jd in job_descriptions
-        ]
+            job_descriptions = db.query(JobDescription).all()
+        #
+        # def get_rounds(jd):
+        #     rounds = []
+        #     for i in range(1, 6):
+        #         title = getattr(jd, f"round{i}")
+        #         if title:
+        #             rounds.append(RoundRequest(id=i, title=title))
+        #     return rounds
+        #
+        # return [
+        #     JDResponse(
+        #         id=jd.id,
+        #         job_title=jd.job_title,
+        #         qualifications=jd.qualifications,
+        #         location=jd.location,
+        #         experience_required=jd.experience_required,
+        #         required_skills=jd.required_skills.split(", ") if jd.required_skills else [],
+        #         job_type=jd.job_type,
+        #         company_name=jd.company_name,
+        #         raw_jd_text=jd.raw_jd_text,
+        #         interviewer_ids=[interviewer.id for interviewer in jd.interviewers],
+        #         rounds=get_rounds(jd)
+        #     )
+        #     for jd in job_descriptions
+        # ]
+
+            jd_data = []
+            for jd in job_descriptions:
+                # Prepare rounds dynamically
+                rounds = []
+                for i in range(1, 6):
+                    title = getattr(jd, f"round{i}", None)
+                    if title:
+                        rounds.append(RoundRequest(id=i, title=title))
+
+                # Prepare interviewers
+                interviewers = [
+                    Interviewer(id=intv.id, name=intv.name) for intv in jd.interviewers
+                ]
+
+                jd_data.append({
+                    "id": jd.id,
+                    "title": jd.job_title,
+                    "description": jd.raw_jd_text,
+                    "created_at": jd.created_at.strftime("%Y-%m-%d"),
+                    "rounds": rounds,
+                    "interviewers": interviewers
+                })
+
+            return jd_data
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -77,8 +135,8 @@ def update_job_description(jd_id: int, update_data: JDUpdateRequest, db: Session
             jd.job_type = update_data.job_type
         if update_data.company_name is not None:
             jd.company_name = update_data.company_name
-        if update_data.raw_jd_text is not None:
-            jd.raw_jd_text = update_data.raw_jd_text
+        if update_data.job_description is not None:
+            jd.job_description = update_data.job_description
 
         if update_data.interviewer_ids is not None:
             jd.interviewers.clear()
@@ -90,15 +148,16 @@ def update_job_description(jd_id: int, update_data: JDUpdateRequest, db: Session
 
         return JDResponse(
             id=jd.id,
-            job_title=jd.job_title,
+            title=jd.job_title,
             qualifications=jd.qualifications,
             location=jd.location,
             experience_required=jd.experience_required,
             required_skills=jd.required_skills.split(", ") if jd.required_skills else [],
             job_type=jd.job_type,
             company_name=jd.company_name,
-            raw_jd_text=jd.raw_jd_text,
-            interviewer_ids=[interviewer.id for interviewer in jd.interviewers]
+            description=jd.raw_jd_text,
+            interviewer_ids=[interviewer.id for interviewer in jd.interviewers],
+            created_at=jd.created_at.strftime("%Y-%m-%d")
         )
     except HTTPException:
         raise

@@ -4,6 +4,7 @@ from app.database import Base
 from pydantic import BaseModel
 from datetime import datetime
 from app.models.associations import job_interviewers
+from sqlalchemy.sql import func
 
 class JobDescription(Base):
     __tablename__ = "job_descriptions"
@@ -17,7 +18,7 @@ class JobDescription(Base):
     job_type = Column(String)
     company_name = Column(String)
     raw_jd_text = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     round1 = Column(Text)
     round2 = Column(Text)
     round3 = Column(Text)
@@ -28,7 +29,7 @@ class JobDescription(Base):
 
 class JobDescriptionOut(BaseModel):
     id: int
-    title: str
+    job_title: str
     description: str
     created_at: datetime
 

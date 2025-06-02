@@ -4,6 +4,9 @@ from app.models.candidate import Candidate
 from app.models.resume import Resume
 import pandas as pd
 import json
+from typing import Optional
+import uuid
+from fastapi import HTTPException
 
 def add_candidate_to_db(name, phone, email):
     db = next(get_db())
@@ -31,9 +34,20 @@ def fetch_candidates(status, search=None):
     results = query.all()
     return pd.DataFrame([c.to_dict() for c in results])
 
-def fetch_latest_resumes():
-    db = next(get_db())
-    resumes = db.query(Resume).all()
+def fetch_latest_resumes(db: Session,batch_id: Optional[str] = None):
+    # db = next(get_db())
+
+    if batch_id:
+        try:
+            batch_uuid = uuid.UUID(batch_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid batch_id format")
+        resumes = db.query(Resume).filter(Resume.batch_id == batch_uuid).all()
+    else:
+        resumes = db.query(Resume).all()
+
+    print(f"[DEBUG] Resumes fetched: {len(resumes)} for batch_id: {batch_id}")
+
     if not resumes:
         return pd.DataFrame()
     data = []
