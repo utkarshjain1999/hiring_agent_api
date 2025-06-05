@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Query, HTTPException
 from app.schemas.resume_candidate import CandidateData, MatchingRequest
-from app.services.screening import match_resumes_service, shortlist_candidate, hold_candidate, reject_candidate, export_candidates_to_excel, get_candidates_by_status
+from app.services.screening import match_resumes_service, update_candidate_status_by_resume, export_candidates_to_excel,fetch_candidates
 from app.crud.job_description import get_all_job_descriptions
 from app.database import get_db
 from fastapi import Depends
 from sqlalchemy.orm import Session
+from app.schemas.candidate import CandidateQuery
 
 router = APIRouter()
 
@@ -17,27 +18,24 @@ async def get_all_jds():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching job descriptions: {str(e)}")
 
-@router.get("/candidates")
-def get_candidates(status: str = Query(...), search: str = Query(None)):
-    return get_candidates_by_status(status, search)
+@router.post("/candidates")
+def get_candidates(query: CandidateQuery):
+    return fetch_candidates(jd_id=query.jdId, search=query.searchQuery)
 
-@router.post("/shortlist")
-def shortlist(data: CandidateData):
-    return shortlist_candidate(data)
 
-@router.post("/hold")
-def hold(data: CandidateData):
-    return hold_candidate(data)
+@router.post("/job-descriptions/{jd_id}/{status}/{resume_id}")
+def update_candidate_status_endpoint(jd_id: int, status: str, resume_id: int):
+    valid_statuses = {"shortlisted", "hold", "rejected"}
+    if status not in valid_statuses:
+        raise HTTPException(status_code=400, detail="Invalid status value")
 
-@router.post("/reject")
-def reject(data: CandidateData):
-    return reject_candidate(data)
+    return update_candidate_status_by_resume(resume_id=resume_id, status=status)
 
 @router.post("/match_resumes")
 def match_resumes(request: MatchingRequest, db: Session = Depends(get_db)):
     return match_resumes_service(request, db)
 
-@router.get("/exportToExcel")
-def export_excel():
-    return export_candidates_to_excel()
+@router.get("/exportToExcel/{jd_id}")
+def export_excel(jd_id: str):
+    return export_candidates_to_excel(jd_id)
 

@@ -56,15 +56,16 @@ async def upload_and_match(
     resume_count = len(extracted["resumes"])
     print(f"✅ Matching will be performed against {resume_count} resumes.")
     # Match resumes
-    matches = match_resumes_service(matching_request, db)
+    # matches = match_resumes_service(matching_request, db)
 
-    return {
-        "success": True,
-        "message": "Resumes processed and matched successfully.",
-        "batch_id": extracted["batch_id"],
-        "matches": matches["matches"],
-        "count": matches["count"]
-    }
+    # return {
+    #     "success": True,
+    #     "message": "Resumes processed and matched successfully.",
+    #     "batch_id": extracted["batch_id"],
+    #     "matches": matches["matches"],
+    #     "count": matches["count"]
+    # }
+    return match_resumes_service(matching_request, db)
 
 
 

@@ -5,6 +5,8 @@ from fastapi import HTTPException
 from sklearn.metrics.pairwise import cosine_similarity
 from app.crud.candidate import add_candidate_to_db, update_candidate_status, fetch_candidates, fetch_latest_resumes
 from app.schemas.resume_candidate import MatchingRequest, CandidateData
+from app.models.candidate import Candidate
+from app.database import get_db
 from io import BytesIO
 import re
 import pandas as pd
@@ -12,6 +14,10 @@ from sqlalchemy.orm import Session
 from app.models.job_description import JobDescription
 from sentence_transformers import SentenceTransformer
 from langchain_community.embeddings import HuggingFaceEmbeddings
+from sqlalchemy.orm import Session
+from app.database import get_db
+from sqlalchemy.exc import IntegrityError
+from fastapi.responses import StreamingResponse
 
 def clean_skills_string(skill_str):
     """Convert stringified set to a clean space-separated string"""
@@ -26,6 +32,14 @@ def fetch_jd_text_by_id(db: Session, jd_id: int) -> str:
     if not jd_row:
         raise HTTPException(status_code=404, detail="Job description not found")
     return jd_row.raw_jd_text
+
+def fetch_candidates_by_jd(jd_id: int,db: Session):
+    candidates = db.query(Candidate).filter(Candidate.jd_id == jd_id).all()
+    grouped = {"new": [], "shortlisted": [], "hold": [], "rejected": []}
+    for c in candidates:
+        grouped.setdefault(c.status, []).append(c.to_dict())
+    return grouped
+
 
 def match_resumes_service(request: MatchingRequest, db: Session):
     print(f"[DEBUG] MatchingRequest batch_id: {request.batch_id}")
@@ -42,6 +56,8 @@ def match_resumes_service(request: MatchingRequest, db: Session):
     parsed_df["Intern_Experience"] = pd.to_numeric(parsed_df.get("Intern_Experience", 0), errors="coerce").fillna(0).astype(int)
     parsed_df["graduation_year"] = parsed_df.get("graduation_year", "").astype(str)
     parsed_df["college"] = parsed_df.get("college", "")
+    parsed_df["resume_id"] = stored_df["resume_id"].values  # ✅ Carry over resume_id
+    parsed_df["jd_id"] = request.jd_id
     parsed_df["combined_text"] = parsed_df.apply(lambda row: f"{row['skills']} {row['experience']} {row['Intern_Experience']} {row['graduation_year']} {row['college']}", axis=1)
 
     top_matches = get_top_matching_resumes(parsed_df, request.jd_id, request.threshold, request.top_n, db)
@@ -51,9 +67,21 @@ def match_resumes_service(request: MatchingRequest, db: Session):
 
     for _, row in top_matches.iterrows():
         if row.get("email"):
-            add_candidate_to_db(row.get("name", ""), row.get("phone", ""), row.get("email", ""))
+            print("[DEBUG] Resume ID for candidate:", row.get("resume_id"))
+            try:
+                add_candidate_to_db(
+                    row.get("name", ""),
+                    row.get("phone", ""),
+                    row.get("email", ""),
+                    row.get("resume_id"),
+                    request.jd_id
+                )
+            except IntegrityError:
+                db.rollback()
+                print(f"[INFO] Candidate with email {row.get('email')} already exists. Skipping insert.")
 
-    return {"matches": top_matches.to_dict(orient="records"), "count": len(top_matches)}
+    return fetch_candidates_by_jd(request.jd_id,db)
+    # return {"matches": top_matches.to_dict(orient="records"), "count": len(top_matches)}
 
 def get_top_matching_resumes(df, jd_id, threshold, top_n, db: Session):
     jd_text = fetch_jd_text_by_id(db, jd_id)
@@ -72,24 +100,64 @@ def get_top_matching_resumes(df, jd_id, threshold, top_n, db: Session):
 
     return df[df["similarity_score"] > threshold].sort_values(by="similarity_score", ascending=False).head(top_n)
 
-def shortlist_candidate(data: CandidateData):
-    return update_candidate_status(data.email, "shortlisted")
+# def shortlist_candidate(data: CandidateData):
+#     return update_candidate_status(data.email, "shortlisted")
+#
+# def hold_candidate(data: CandidateData):
+#     return update_candidate_status(data.email, "hold")
+#
+# def reject_candidate(data: CandidateData):
+#     return update_candidate_status(data.email, "rejected")
 
-def hold_candidate(data: CandidateData):
-    return update_candidate_status(data.email, "hold")
+def update_candidate_status_by_resume(resume_id, status):
+    db = next(get_db())
+    candidate = db.query(Candidate).filter(Candidate.resume_id == resume_id).first()
+    if candidate:
+        candidate.status = status
+        db.commit()
+        return {"success": True}
+    raise HTTPException(status_code=404, detail="Candidate not found")
 
-def reject_candidate(data: CandidateData):
-    return update_candidate_status(data.email, "rejected")
 
-def get_candidates_by_status(status, search):
-    return fetch_candidates(status, search)
+def get_candidates_by_status(payload: dict):
+    jd_id = payload.get("jdId")
+    search_query = payload.get("searchQuery", None)
 
-def export_candidates_to_excel():
-    # Convert to Excel and return as bytes
-    df = fetch_candidates("all")
+    if not jd_id:
+        raise HTTPException(status_code=400, detail="jdId is required")
+
+    return fetch_candidates(jd_id=jd_id, search=search_query)
+
+def export_candidates_to_excel(jd_id: int):
+    grouped = fetch_candidates(jd_id)
+
+    all_candidates = []
+    for status, candidates in grouped.items():
+        for c in candidates:
+            c["status"] = status  # Ensure status is included
+            all_candidates.append(c)
+
+    df = pd.DataFrame(all_candidates)
+
+    print("[DEBUG] DataFrame Preview:")
+    print(df.head())
+    print("[DEBUG] DataFrame dtypes:")
+    print(df.dtypes)
+
     if df.empty:
         raise HTTPException(status_code=404, detail="No candidates found")
+
     output = BytesIO()
-    df.to_excel(output, index=False)
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False)
     output.seek(0)
-    return output.getvalue()
+
+    filename = f"Candidates-{jd_id}.xlsx"
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
+

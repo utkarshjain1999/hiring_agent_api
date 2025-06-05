@@ -90,7 +90,8 @@ def login_user(login: LoginRequest, db: Session = Depends(get_db)):
     return {
         "token": token,
         "name": user.name,
-        "role": user.role
+        "role": user.role,
+        "userId": user.id
     }
 
 @router.post("/register")

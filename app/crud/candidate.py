@@ -8,10 +8,17 @@ from typing import Optional
 import uuid
 from fastapi import HTTPException
 
-def add_candidate_to_db(name, phone, email):
+def add_candidate_to_db(name, phone, email,resume_id=None,jd_id=None):
     db = next(get_db())
-    if not db.query(Candidate).filter_by(email=email).first():
-        new_candidate = Candidate(name=name, phone=phone, email=email, status="new")
+    if not db.query(Candidate).filter_by(email=email,jd_id=jd_id).first():
+        new_candidate = Candidate(
+            name=name,
+            phone=phone,
+            email=email,
+            status="new",
+            resume_id=resume_id,
+            jd_id=jd_id
+        )
         db.add(new_candidate)
         db.commit()
 
@@ -24,15 +31,24 @@ def update_candidate_status(email, status):
         return {"success": True}
     raise HTTPException(status_code=404, detail="Candidate not found")
 
-def fetch_candidates(status, search=None):
+def fetch_candidates(jd_id: int, search: Optional[str] = None):
     db = next(get_db())
-    query = db.query(Candidate)
-    if status != "all":
-        query = query.filter_by(status=status)
+    query = db.query(Candidate).filter(Candidate.jd_id == jd_id)
+
     if search:
-        query = query.filter(Candidate.name.ilike(f"%{search}%") | Candidate.email.ilike(f"%{search}%"))
-    results = query.all()
-    return pd.DataFrame([c.to_dict() for c in results])
+        query = query.filter(
+            Candidate.name.ilike(f"%{search}%") |
+            Candidate.email.ilike(f"%{search}%")
+        )
+
+    candidates = query.all()
+
+    grouped = {"new": [], "shortlisted": [], "hold": [], "rejected": []}
+    for c in candidates:
+        grouped.setdefault(c.status, []).append(c.to_dict())
+
+    return grouped
+
 
 def fetch_latest_resumes(db: Session,batch_id: Optional[str] = None):
     # db = next(get_db())
@@ -64,6 +80,7 @@ def fetch_latest_resumes(db: Session,batch_id: Optional[str] = None):
             "Intern_Experience": r.intern_experience,
         }
         data.append({
+            "resume_id": r.id,
             "filename": r.source_file,
             "parsed_json": json.dumps(resume_dict)
         })

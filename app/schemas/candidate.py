@@ -1,6 +1,10 @@
 from pydantic import BaseModel
 from typing import List, Optional
 
+class CandidateQuery(BaseModel):
+    jdId: int
+    searchQuery: Optional[str] = None
+
 class InternExperience(BaseModel):
     duration_months: Optional[int]
     roles: Optional[List[str]]

@@ -6,6 +6,7 @@ from app.models.job_description import JobDescription
 from app.models.users import User
 from app.database import get_db
 from app.crud.job_description import extract_and_store_jd
+from app.schemas.job_description import JobDescriptionSearchRequest
 from app.services.jd_parser import extract_jd_data
 
 router = APIRouter()
@@ -50,60 +51,48 @@ def parse_jd(request: JDRequest, db: Session = Depends(get_db)):
         **round_fields
     )
 
-@router.get("/getJobDescriptions", response_model=List[JDResponse])
-def get_job_descriptions(db: Session = Depends(get_db)):
+@router.post("/getJobDescriptions")
+def get_job_descriptions(request: JobDescriptionSearchRequest, db: Session = Depends(get_db)):
     try:
-            job_descriptions = db.query(JobDescription).all()
-        #
-        # def get_rounds(jd):
-        #     rounds = []
-        #     for i in range(1, 6):
-        #         title = getattr(jd, f"round{i}")
-        #         if title:
-        #             rounds.append(RoundRequest(id=i, title=title))
-        #     return rounds
-        #
-        # return [
-        #     JDResponse(
-        #         id=jd.id,
-        #         job_title=jd.job_title,
-        #         qualifications=jd.qualifications,
-        #         location=jd.location,
-        #         experience_required=jd.experience_required,
-        #         required_skills=jd.required_skills.split(", ") if jd.required_skills else [],
-        #         job_type=jd.job_type,
-        #         company_name=jd.company_name,
-        #         raw_jd_text=jd.raw_jd_text,
-        #         interviewer_ids=[interviewer.id for interviewer in jd.interviewers],
-        #         rounds=get_rounds(jd)
-        #     )
-        #     for jd in job_descriptions
-        # ]
+        query = db.query(JobDescription)
 
-            jd_data = []
-            for jd in job_descriptions:
-                # Prepare rounds dynamically
-                rounds = []
-                for i in range(1, 6):
-                    title = getattr(jd, f"round{i}", None)
-                    if title:
-                        rounds.append(RoundRequest(id=i, title=title))
+        # Apply search filter
+        if request.searchQuery:
+            search = f"%{request.searchQuery}%"
+            if request.searchQuery.isdigit():
+                query = query.filter(JobDescription.id == int(request.searchQuery))
+            else:
+                query = query.filter(
+                    JobDescription.job_title.ilike(search) |
+                    # JobDescription.required_skills.ilike(search) |
+                    JobDescription.location.ilike(search) |
+                    JobDescription.company_name.ilike(search)
+                )
 
-                # Prepare interviewers
-                interviewers = [
-                    Interviewer(id=intv.id, name=intv.name) for intv in jd.interviewers
-                ]
+        job_descriptions = query.all()
 
-                jd_data.append({
-                    "id": jd.id,
-                    "title": jd.job_title,
-                    "description": jd.raw_jd_text,
-                    "created_at": jd.created_at.strftime("%Y-%m-%d"),
-                    "rounds": rounds,
-                    "interviewers": interviewers
-                })
+        jd_data = []
+        for jd in job_descriptions:
+            rounds = []
+            for i in range(1, 6):
+                title = getattr(jd, f"round{i}", None)
+                if title:
+                    rounds.append(RoundRequest(id=i, title=title))
 
-            return jd_data
+            interviewers = [
+                Interviewer(id=intv.id, name=intv.name) for intv in jd.interviewers
+            ]
+
+            jd_data.append({
+                "id": jd.id,
+                "title": jd.job_title,
+                "description": jd.raw_jd_text,
+                "created_at": jd.created_at.isoformat(),
+                "rounds": rounds,
+                "interviewers": interviewers
+            })
+
+        return {"jobDescriptions": jd_data}
 
     except Exception as e:
         raise HTTPException(

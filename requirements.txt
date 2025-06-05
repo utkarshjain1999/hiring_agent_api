@@ -19,6 +19,6 @@ langchain-community==0.0.36
 sentence-transformers==2.2.2
 torch==2.1.2  # Compatible with sentence-transformers, avoids 'meta tensor' issue
 scikit-learn==1.3.2
-
+openpyxl
 # Optional: Only if you're using Hugging Face's models directly
 transformers==4.39.3

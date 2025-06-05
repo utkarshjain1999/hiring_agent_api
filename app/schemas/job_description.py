@@ -11,6 +11,9 @@ class Interviewer(BaseModel):
     id: int
     name: str
 
+class JobDescriptionSearchRequest(BaseModel):
+    searchQuery: Optional[str] = None
+
 class JDRequest(BaseModel):
     job_description: str
     job_title: str
