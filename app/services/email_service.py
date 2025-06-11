@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from app.crud.users import check_token_used
 import logging
+from app.crud.candidate import get_candidate_by_id
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -103,6 +104,71 @@ def verify_reset_password_token(token: str, db: Session) -> Optional[str]:
         return email
     except jwt.PyJWTError:
         return None
+
+
+def send_shortlist_email(email: str, name: str):
+    """Send shortlist notification to candidate"""
+    subject = "You're Shortlisted!"
+    body = f"""
+    Hi {name},
+
+    Congratulations! You have been shortlisted for the next round.
+
+    Our team will contact you shortly for scheduling the interview.
+
+    Regards,
+    Talent Team
+    """
+    send_generic_email(email, subject, body)
+
+
+def send_interview_invite_email(email: str, name: str, slot_time: str):
+    """Send interview invite email with time"""
+    subject = "Interview Invitation"
+    body = f"""
+    Hi {name},
+
+    You are invited for an interview scheduled at: {slot_time} (IST).
+
+    Please be available at the mentioned time. For any queries, reach out to the HR team.
+
+    Regards,
+    Talent Team
+    """
+    send_generic_email(email, subject, body)
+
+
+def send_generic_email(to_email: str, subject: str, body: str):
+    """Reusable function to send any plain text email"""
+    if not all([SMTP_USERNAME, SMTP_TOKEN]):
+        raise HTTPException(status_code=500, detail="SMTP not configured")
+
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = SMTP_USERNAME
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
+
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_TOKEN)
+            server.send_message(msg)
+            logger.info(f"Email sent to {to_email} with subject '{subject}'")
+    except Exception as e:
+        logger.error(f"Email failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
+
+
+def generate_slot_booking_token(email: str) -> str:
+    expiration = datetime.utcnow() + timedelta(hours=48)
+    token_data = {
+        "sub": email,
+        "exp": expiration,
+        "type": "slot_booking"
+    }
+    return jwt.encode(token_data, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
 
 def send_password_setup_email(email: str, token: str):
     """Send password setup email with the token link"""
@@ -225,3 +291,30 @@ def send_reset_password_email(email: str, token: str):
         error_msg = f"Failed to send email: {str(e)}"
         logger.error(error_msg)
         raise HTTPException(status_code=500, detail=error_msg)
+
+def send_shortlist_email_with_slot_link_by_id(candidate_id: int, db: Session):
+
+    candidate = get_candidate_by_id(db, candidate_id)
+    if not candidate or not candidate.email:
+        raise HTTPException(status_code=404, detail="Candidate not found or missing email")
+
+    token = generate_slot_booking_token(candidate.email)
+    booking_link = f"{FRONTEND_URL}/book-slot?token={token}"
+
+    subject = "You've Been Shortlisted – Book Your Interview Slot"
+    body = f"""
+    Hi {candidate.name or 'Candidate'},
+
+    Congratulations! You've been shortlisted.
+
+    Please book your interview slot here:
+    {booking_link}
+
+    This link is valid for 48 hours.
+
+    Regards,  
+    Hiring Team
+    """
+
+    send_generic_email(candidate.email, subject, body)
+

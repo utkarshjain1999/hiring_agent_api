@@ -14,9 +14,10 @@ class Candidate(Base):
     jd_id = Column(Integer, ForeignKey("job_descriptions.id"))
 
     # ✅ Fix: Add this line
-    interviews = relationship("Interview", back_populates="candidate")
+    interviews = relationship("InterviewSlot", back_populates="candidate")
     resume = relationship("Resume")
     job_description = relationship("JobDescription")
+    slots = relationship("InterviewSlot", back_populates="candidate")
 
     def to_dict(self):
         return {"name": self.name, "phone": self.phone, "email": self.email, "status": self.status,"resume_id":self.resume_id, "jd_id":self.jd_id}

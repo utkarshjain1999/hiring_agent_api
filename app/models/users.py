@@ -27,6 +27,9 @@ class User(Base):
 
     # inside User model
     job_descriptions = relationship("JobDescription", secondary=job_interviewers, back_populates="interviewers")
+    # Add this to the User model class
+    interview_slots = relationship("InterviewSlot", back_populates="interviewer")
+
 
 def send_password_setup_email_for_user(user):
     """Helper function to send password setup email"""

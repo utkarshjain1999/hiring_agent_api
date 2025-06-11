@@ -1,9 +1,11 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
+from typing import List
 
-class EmailRequest(BaseModel):
-    candidate_id: int
-    stage: str
+
+class SendMailRequest(BaseModel):
+    candidate_ids: Optional[List[int]] = None
+    interview_ids: Optional[List[int]] = None
 
 class RescheduleAction(BaseModel):
     interview_id: int

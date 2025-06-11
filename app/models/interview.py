@@ -1,19 +1,19 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean, Text
+from sqlalchemy import Column, Integer, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from app.database import Base
-import datetime
+from datetime import datetime
 
-class Interview(Base):
-    __tablename__ = "interviews"
+class InterviewSlot(Base):
+    __tablename__ = "interview_slots"
 
     id = Column(Integer, primary_key=True, index=True)
-    candidate_id = Column(Integer, ForeignKey("candidates.id"))
-    interviewer_id = Column(Integer, ForeignKey("users.id"))
-    scheduled_time = Column(DateTime)
-    stage = Column(String)  # e.g., "Technical", "HR"
-    status = Column(String, default="scheduled")  # scheduled, reschedule_requested, completed, etc.
-    feedback = Column(Text, nullable=True)
-    final_decision = Column(String, nullable=True)  # selected/rejected/hold
+    candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False)
+    interviewer_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Refers to user table
+    jd_id = Column(Integer, nullable=False)
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    candidate = relationship("Candidate", back_populates="interviews")
-    interviewer = relationship("User")
+    # Relationships
+    candidate = relationship("Candidate", back_populates="slots")
+    interviewer = relationship("User", back_populates="interview_slots")  # Assuming backref in User model

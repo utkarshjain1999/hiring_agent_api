@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import date, time, datetime
 
 PHONE_PATTERN = r'^\+?1?\d{9,15}$'
@@ -39,8 +39,38 @@ class CreateSlot(BaseModel):
 class SlotOut(BaseModel):
     id: int
     interviewer_id: int
+    date: date
     start_time: datetime
     end_time: datetime
 
     class Config:
         orm_mode = True
+
+
+class AvailabilityItem(BaseModel):
+    date: datetime  # Accepts ISO format with timestamp
+    start: str      # "09:00"
+    end: str        # "09:30"
+    timezone: str   # Optional for now
+
+class BulkSlotRequest(BaseModel):
+    userId: int
+    availability: List[AvailabilityItem]
+
+class SlotInfo(BaseModel):
+    id: int
+    start: str
+    end: str
+    timezone: str = "Asia/Kolkata"  # default timezone as per your example
+    jdId: Optional[int] = None
+    interviewer_id: Optional[int] = None
+
+class AvailabilityByDate(BaseModel):
+    date: date
+    slots: List[SlotInfo]
+
+class AvailabilityResponse(BaseModel):
+    availability: List[AvailabilityByDate]
+
+class InterviewerIdRequest(BaseModel):
+    interviewerId: int

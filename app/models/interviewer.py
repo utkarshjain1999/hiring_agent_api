@@ -12,3 +12,5 @@ class InterviewerAvailability(Base):
     end_time = Column(DateTime, nullable=False)
 
     interviewer = relationship("User", back_populates="availability_slots")
+
+

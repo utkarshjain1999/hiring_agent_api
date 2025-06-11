@@ -85,3 +85,8 @@ def fetch_latest_resumes(db: Session,batch_id: Optional[str] = None):
             "parsed_json": json.dumps(resume_dict)
         })
     return pd.DataFrame(data)
+
+
+def get_candidate_by_id(db: Session, candidate_id: int):
+    return db.query(Candidate).filter(Candidate.id == candidate_id).first()
+
