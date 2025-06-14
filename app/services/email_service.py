@@ -6,6 +6,7 @@ from app.config import JWT_SECRET_KEY, JWT_ALGORITHM
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 import os
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
@@ -138,7 +139,7 @@ def send_interview_invite_email(email: str, name: str, slot_time: str):
     send_generic_email(email, subject, body)
 
 
-def send_generic_email(to_email: str, subject: str, body: str):
+def send_generic_email(to_email: str, subject: str, body: str, attachments: list[str] = None):
     """Reusable function to send any plain text email"""
     if not all([SMTP_USERNAME, SMTP_TOKEN]):
         raise HTTPException(status_code=500, detail="SMTP not configured")
@@ -150,11 +151,34 @@ def send_generic_email(to_email: str, subject: str, body: str):
         msg['Subject'] = subject
         msg.attach(MIMEText(body, 'plain'))
 
+        files_to_cleanup = []
+
+        # Add attachments if any
+        if attachments:
+            for file_path in attachments:
+                if os.path.exists(file_path):
+                    with open(file_path, 'rb') as f:
+                        part = MIMEApplication(f.read(), Name=os.path.basename(file_path))
+                        part['Content-Disposition'] = f'attachment; filename="{os.path.basename(file_path)}"'
+                        msg.attach(part)
+                    files_to_cleanup.append(file_path)
+                else:
+                    logger.warning(f"Attachment not found: {file_path}")
+
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
             server.starttls()
             server.login(SMTP_USERNAME, SMTP_TOKEN)
             server.send_message(msg)
             logger.info(f"Email sent to {to_email} with subject '{subject}'")
+
+        # Cleanup attachments after sending
+        for file_path in files_to_cleanup:
+            try:
+                os.remove(file_path)
+                logger.info(f"Removed attachment file: {file_path}")
+            except Exception as e:
+                logger.warning(f"Failed to delete file {file_path}: {e}")
+
     except Exception as e:
         logger.error(f"Email failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")

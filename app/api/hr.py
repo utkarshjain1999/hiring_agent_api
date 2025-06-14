@@ -7,6 +7,8 @@ from app.crud import hr
 from app.crud.hr import get_all_invites
 from app.database import get_db
 from app.services.email_service import send_shortlist_email_with_slot_link_by_id
+from app.models.users import User
+from app.models.job_description import JobDescription
 from app.models.candidate import Candidate
 from app.models.interview import InterviewSlot  # Assuming this is your InterviewSlot model file
 from app.schemas.interview_slot import InterviewSlotCreate, InterviewSlotResponse,VerifyTokenRequest, VerifyTokenResponse
@@ -14,6 +16,7 @@ from app.auth.jwt_handler import decode_email_token
 from app.schemas.candidate import CandidateOut
 from app.crud.candidate import fetch_shortlisted_candidates
 from app.models.interviewer import InterviewerAvailability
+from app.services.email_service import send_generic_email
 
 
 router = APIRouter()
@@ -131,7 +134,19 @@ def book_interview_slot(slot_data: InterviewSlotCreate, db: Session = Depends(ge
     if not availability:
         raise HTTPException(status_code=404, detail="Selected availability not found")
 
-    # Step 4: Check if candidate already has a booked slot
+    # Step 4: Get JD info
+    jd = db.query(JobDescription).filter(JobDescription.id == slot_data.jd_id).first()
+    if not jd:
+        raise HTTPException(status_code=404, detail="Job description not found")
+
+
+    # Optional: Write JD text to file
+    if jd.raw_jd_text:
+        file_path = f"jd_{jd.job_title}.txt"
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(jd.raw_jd_text)
+
+    # Step 5: Check if candidate already has a booked slot
     slot = db.query(InterviewSlot).filter(
         InterviewSlot.candidate_id == candidate.id
     ).first()
@@ -146,13 +161,31 @@ def book_interview_slot(slot_data: InterviewSlotCreate, db: Session = Depends(ge
         slot = InterviewSlot(
             candidate_id=candidate.id,
             interviewer_id=availability.interviewer_id,
-            jd_id=slot_data.jd_id,
+            jd_id=jd.id,
             start_time=availability.start_time,
             end_time=availability.end_time,
             is_rescheduled=False,
             reschedule_request_accept=False
         )
         db.add(slot)
+
+        # Send booking email to candidate
+        send_generic_email(
+            to_email=candidate.email,
+            subject="Interview Slot Booked",
+            body=f"Dear {candidate.name}, your interview for {jd.job_title} has been scheduled from {availability.start_time} to {availability.end_time}.",
+            attachments = [file_path]
+        )
+
+        # Send booking email to interviewer
+        interviewer = db.query(User).filter(User.id == availability.interviewer_id).first()
+        if interviewer:
+            send_generic_email(
+                to_email=interviewer.email,
+                subject="Interview Scheduled",
+                body=f"Dear {interviewer.name}, you have an interview for {jd.job_title} scheduled with candidate {candidate.name} from {availability.start_time} to {availability.end_time}.",
+                attachments=[file_path]
+            )
 
     db.commit()
     db.refresh(slot)
