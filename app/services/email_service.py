@@ -299,7 +299,8 @@ def send_shortlist_email_with_slot_link_by_id(candidate_id: int, db: Session):
         raise HTTPException(status_code=404, detail="Candidate not found or missing email")
 
     token = generate_slot_booking_token(candidate.email)
-    booking_link = f"{FRONTEND_URL}/book-slot?token={token}"
+    booking_link = f"http://localhost:8080/candidate-slot-selection?token={token}&jd_id={candidate.jd_id}"
+
 
     subject = "You've Been Shortlisted – Book Your Interview Slot"
     body = f"""

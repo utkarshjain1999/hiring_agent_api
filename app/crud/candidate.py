@@ -1,19 +1,21 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models.candidate import Candidate
 from app.models.resume import Resume
 import pandas as pd
 import json
-from typing import Optional
+from typing import Optional, List
 import uuid
 from fastapi import HTTPException
+from app.models.job_description import JobDescription
 
-def add_candidate_to_db(name, phone, email,resume_id=None,jd_id=None):
+
+def add_candidate_to_db(name, phone_number, email,resume_id=None,jd_id=None):
     db = next(get_db())
     if not db.query(Candidate).filter_by(email=email,jd_id=jd_id).first():
         new_candidate = Candidate(
             name=name,
-            phone=phone,
+            phone_number=phone_number,
             email=email,
             status="new",
             resume_id=resume_id,
@@ -89,4 +91,27 @@ def fetch_latest_resumes(db: Session,batch_id: Optional[str] = None):
 
 def get_candidate_by_id(db: Session, candidate_id: int):
     return db.query(Candidate).filter(Candidate.id == candidate_id).first()
+
+
+def fetch_shortlisted_candidates(db: Session, jd_id: int = None, round_id: int = None):
+    query = db.query(Candidate).options(joinedload(Candidate.job_description)).filter(Candidate.status == "shortlisted")
+
+    if jd_id:
+        query = query.filter(Candidate.jd_id == jd_id)
+
+    candidates = query.all()
+
+    # Filter by round_id manually, because JD.rounds is not directly filterable in SQLAlchemy if it's JSON or separate table
+    if round_id:
+        filtered = []
+        for c in candidates:
+            if c.jd and hasattr(c.jd, "rounds"):
+                rounds = c.jd.rounds or []
+                for r in rounds:
+                    if r.get("id") == round_id:
+                        filtered.append(c)
+                        break
+        return filtered
+
+    return candidates
 

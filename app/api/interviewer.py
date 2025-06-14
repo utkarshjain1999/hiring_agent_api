@@ -4,6 +4,7 @@ from app.schemas import interviewer as schemas
 from app.crud import interviewer as crud
 from app.database import get_db
 from app.models.interviewer import InterviewerAvailability
+from app.models.users import User
 from app.schemas.interviewer import CreateSlot, SlotOut,BulkSlotRequest
 from datetime import datetime
 from typing import List
@@ -72,10 +73,51 @@ def delete_interviewer(id: int, db: Session = Depends(get_db)):
             detail=f"An error occurred while deleting the interviewer: {str(e)}"
         )
 
+# @router.post("/createSlot", response_model=List[SlotOut])
+# def create_availability_slot(payload: BulkSlotRequest, db: Session = Depends(get_db)):
+#     created_slots = []
+#     try:
+#         for slot in payload.availability:
+#             start_time = datetime.strptime(slot.start, "%H:%M").time()
+#             end_time = datetime.strptime(slot.end, "%H:%M").time()
+#
+#             start_datetime = datetime.combine(slot.date.date(), start_time)
+#             end_datetime = datetime.combine(slot.date.date(), end_time)
+#
+#             db_slot = InterviewerAvailability(
+#                 interviewer_id=payload.userId,
+#                 date=slot.date.date(),
+#                 start_time=start_datetime,
+#                 end_time=end_datetime
+#             )
+#             db.add(db_slot)
+#             db.commit()
+#             db.refresh(db_slot)
+#             created_slots.append(db_slot)
+#
+#         return created_slots
+#
+#     except Exception as e:
+#         db.rollback()
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=f"An error occurred while creating the slots: {str(e)}"
+#         )
+
 @router.post("/createSlot", response_model=List[SlotOut])
 def create_availability_slot(payload: BulkSlotRequest, db: Session = Depends(get_db)):
     created_slots = []
     try:
+        # Fetch the interviewer and their linked JDs
+        user = db.query(User).filter(User.id == payload.userId).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Interviewer not found")
+
+        linked_jds = user.job_descriptions  # All JDs interviewer is mapped to
+
+        if not linked_jds:
+            raise HTTPException(status_code=400, detail="No JDs mapped to this interviewer.")
+
         for slot in payload.availability:
             start_time = datetime.strptime(slot.start, "%H:%M").time()
             end_time = datetime.strptime(slot.end, "%H:%M").time()
@@ -83,16 +125,18 @@ def create_availability_slot(payload: BulkSlotRequest, db: Session = Depends(get
             start_datetime = datetime.combine(slot.date.date(), start_time)
             end_datetime = datetime.combine(slot.date.date(), end_time)
 
-            db_slot = InterviewerAvailability(
-                interviewer_id=payload.userId,
-                date=slot.date.date(),
-                start_time=start_datetime,
-                end_time=end_datetime
-            )
-            db.add(db_slot)
-            db.commit()
-            db.refresh(db_slot)
-            created_slots.append(db_slot)
+            for jd in linked_jds:
+                db_slot = InterviewerAvailability(
+                    interviewer_id=payload.userId,
+                    jd_id=jd.id,  # Link each slot to each JD
+                    date=slot.date.date(),
+                    start_time=start_datetime,
+                    end_time=end_datetime
+                )
+                db.add(db_slot)
+                db.commit()
+                db.refresh(db_slot)
+                created_slots.append(db_slot)
 
         return created_slots
 
@@ -102,6 +146,7 @@ def create_availability_slot(payload: BulkSlotRequest, db: Session = Depends(get
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while creating the slots: {str(e)}"
         )
+
 
 @router.post("/getAllSlots", response_model=AvailabilityResponse)
 def get_available_slots(

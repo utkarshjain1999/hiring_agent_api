@@ -1,5 +1,7 @@
 from pydantic import BaseModel
 from typing import List, Optional
+from sqlalchemy import DateTime
+from datetime import datetime
 
 class CandidateQuery(BaseModel):
     jdId: int
@@ -23,3 +25,23 @@ class ResumeCreate(BaseModel):
     experience: Optional[int]
     intern_experience: Optional[InternExperience]
     source_file: Optional[str]
+
+class JDInfo(BaseModel):
+    id: Optional[int]
+    title: Optional[str]
+    round: Optional[int]
+
+    class Config:
+        orm_mode = True
+
+class CandidateOut(BaseModel):
+    id: Optional[int]
+    email: Optional[str]
+    name: Optional[str]
+    phone_number: Optional[str]
+    jd: Optional[JDInfo]
+    shortlisted_date: Optional[datetime]
+    status: Optional[str]
+
+    class Config:
+        orm_mode = True

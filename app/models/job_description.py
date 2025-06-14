@@ -26,6 +26,9 @@ class JobDescription(Base):
     round5 = Column(Text)
 
     interviewers = relationship("User", secondary=job_interviewers, back_populates="job_descriptions")
+    interviewer_availabilities = relationship("InterviewerAvailability", back_populates="job_description")
+    candidates = relationship("Candidate", back_populates="job_description")
+
 
 class JobDescriptionOut(BaseModel):
     id: int

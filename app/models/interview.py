@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, ForeignKey, DateTime, String, Boolean
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
@@ -13,6 +13,10 @@ class InterviewSlot(Base):
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    reschedule_start_time = Column(DateTime, nullable=True)
+    reschedule_end_time = Column(DateTime, nullable=True)
+    is_rescheduled = Column(Boolean, default=False)
+    reschedule_request_accept = Column(Boolean, default=False)
 
     # Relationships
     candidate = relationship("Candidate", back_populates="slots")

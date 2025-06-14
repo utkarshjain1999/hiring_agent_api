@@ -1,12 +1,12 @@
+from pyasn1.type.univ import Boolean
 from pydantic import BaseModel
 from datetime import datetime
+from typing import Optional
 
 class InterviewSlotCreate(BaseModel):
-    email: str
-    interviewer_id: int  # User ID
+    token: str  # Encoded candidate email
     jd_id: int
-    start_time: datetime
-    end_time: datetime
+    slot_id: int
 
 class InterviewSlotResponse(BaseModel):
     id: int
@@ -15,6 +15,9 @@ class InterviewSlotResponse(BaseModel):
     jd_id: int
     start_time: datetime
     end_time: datetime
+    reschedule_start_time: Optional[datetime]
+    reschedule_end_time: Optional[datetime]
+    is_rescheduled: bool
 
     class Config:
         orm_mode = True
@@ -25,6 +28,6 @@ class VerifyTokenRequest(BaseModel):
 
 class VerifyTokenResponse(BaseModel):
     slot_status: str  # "new" or "reschedule"
-    candidate_id: int
+    reschedule_attempt: bool
 
 

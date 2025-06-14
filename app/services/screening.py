@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from sqlalchemy.exc import IntegrityError
 from fastapi.responses import StreamingResponse
+from datetime import datetime
 
 def clean_skills_string(skill_str):
     """Convert stringified set to a clean space-separated string"""
@@ -71,7 +72,7 @@ def match_resumes_service(request: MatchingRequest, db: Session):
             try:
                 add_candidate_to_db(
                     row.get("name", ""),
-                    row.get("phone", ""),
+                    row.get("phone_number", ""),
                     row.get("email", ""),
                     row.get("resume_id"),
                     request.jd_id
@@ -114,6 +115,10 @@ def update_candidate_status_by_resume(resume_id, status):
     candidate = db.query(Candidate).filter(Candidate.resume_id == resume_id).first()
     if candidate:
         candidate.status = status
+        if status.lower() == 'shortlisted':
+            candidate.shortlisted_date = datetime.utcnow()  # or .now() for local time
+        db.commit()
+        return {"success": True}
         db.commit()
         return {"success": True}
     raise HTTPException(status_code=404, detail="Candidate not found")

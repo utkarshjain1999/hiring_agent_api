@@ -10,7 +10,9 @@ class InterviewerAvailability(Base):
     date = Column(Date, nullable=False)
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=False)
+    jd_id = Column(Integer, ForeignKey("job_descriptions.id"), nullable=False)
 
     interviewer = relationship("User", back_populates="availability_slots")
+    job_description = relationship("JobDescription", back_populates="interviewer_availabilities")
 
 
